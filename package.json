@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/developerdizzle/react-virtual-list",
   "dependencies": {
+    "binarysearch": "1.0.0",
     "react": "~0.13.x"
   },
   "devDependencies": {
