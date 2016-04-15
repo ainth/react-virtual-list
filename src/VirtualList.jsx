@@ -1,5 +1,6 @@
 var React = require('react');
 var utils = require('./utils');
+var bs = require('binarysearch');
 
 var VirtualList = React.createClass({
     propTypes: {
@@ -26,32 +27,41 @@ var VirtualList = React.createClass({
             bufferStart: 0,
             height: 0
         };
-        
+
         // early return if nothing to render
         if (typeof props.container === 'undefined' || props.items.length === 0 || props.itemHeight <= 0 || !this.isMounted()) return state;
-        
+
         var items = props.items;
-        
-        state.height = props.items.length * props.itemHeight;
+        var itemPositions = null;
+
+        // em - must sum 'height' prop of all items.
+        if (!props.itemHeight) {
+          itemPositions = this.itemPositions();
+          var last = state.itemPositions[state.itemPositions.length - 1];
+          state.height = last + this._getItemHeight(items[items.length - 1], props);
+        } else {
+          state.height = props.items.length * props.itemHeight;
+        }
+
 
         var viewBox = this.viewBox(props);
-        
+
         // no space to render
         if (viewBox.height <= 0) return state;
-        
+
         viewBox.top = utils.viewTop(props.container);
         viewBox.bottom = viewBox.top + viewBox.height;
-        
-        var listBox = this.listBox(props);
 
-        var renderStats = VirtualList.getItems(viewBox, listBox, props.itemHeight, items.length, props.itemBuffer);
-        
+        var listBox = this.listBox(props, state);
+
+        var renderStats = VirtualList.getItems(viewBox, listBox, props.itemHeight, items.length, props.itemBuffer, itemPositions);
+
         // no items to render
         if (renderStats.itemsInView.length === 0) return state;
 
         state.items = items.slice(renderStats.firstItemIndex, renderStats.lastItemIndex + 1);
         state.bufferStart = renderStats.firstItemIndex * props.itemHeight;
-        
+
         return state;
     },
     getInitialState: function() {
@@ -61,31 +71,48 @@ var VirtualList = React.createClass({
         if (this.state.bufferStart !== nextState.bufferStart) return true;
 
         if (this.state.height !== nextState.height) return true;
-        
+
         var equal = utils.areArraysEqual(this.state.items, nextState.items);
-        
+
         return !equal;
     },
     viewBox: function viewBox(nextProps) {
         return (this.view = this.view || this._getViewBox(nextProps));
+    },
+    itemPositions: function itemPositions(nextProps) {
+        return (this.itemPositions = this.itemPositions || this._getItemPositions(nextProps));
     },
     _getViewBox: function _getViewBox(nextProps) {
         return {
             height: typeof nextProps.container.innerHeight !== 'undefined' ? nextProps.container.innerHeight : nextProps.container.clientHeight
         };
     },
-    _getListBox: function(nextProps) {
+    _getListBox: function(nextProps, nextState) {
         var list = this.getDOMNode();
 
         var top = utils.topDifference(list, nextProps.container);
-        
-        var height = nextProps.itemHeight * nextProps.items.length;
-        
+
         return {
             top: top,
-            height: height,
-            bottom: top + height
+            height: nextState.height,
+            bottom: top + nextState.height
         };
+    },
+    _getItemPositions: function(nextProps) {
+        var items = nextProps.items;
+        var itemPositions = [];
+
+        var atHeight = 0;
+        for (i = 0; i < items.length; i++) {
+          var height = getHeightByFunc ? nextProps.getItemHeight(items[i]) : items[i].height;
+          itemPositions[i] = atHeight;
+          atHeight += height;
+        }
+        return itemPositions;
+    },
+    _getItemHeight: function(item, props) {
+      var getHeightByFunc = props.getItemHeight && !(utils.isPlainObject(item) && items.height);
+      return getHeightByFunc ? props.getItemHeight(item) : item.height;
     },
     listBox: function listBox(nextProps) {
         return (this.list = this.list || this._getListBox(nextProps));
@@ -99,7 +126,7 @@ var VirtualList = React.createClass({
         this.props.container.removeEventListener('scroll', this.onScrollDebounced);
 
         this.onScrollDebounced = utils.debounce(this.onScroll, nextProps.scrollDelay, false);
-        
+
         nextProps.container.addEventListener('scroll', this.onScrollDebounced);
 
         this.setState(state);
@@ -109,19 +136,19 @@ var VirtualList = React.createClass({
     },
     componentDidMount: function() {
         var state = this.getVirtualState(this.props);
-        
+
         this.setState(state);
-        
+
         this.props.container.addEventListener('scroll', this.onScrollDebounced);
     },
     componentWillUnmount: function() {
         this.props.container.removeEventListener('scroll', this.onScrollDebounced);
-        
+
         this.view = this.list = null;
     },
     onScroll: function() {
         var state = this.getVirtualState(this.props);
-        
+
         this.setState(state);
     },
     // in case you need to get the currently visible items
@@ -139,33 +166,41 @@ var VirtualList = React.createClass({
 
 VirtualList.getBox = function getBox(view, list) {
     list.height = list.height || list.bottom - list.top;
-    
+
     return {
         top: Math.max(0, Math.min(view.top - list.top)),
         bottom: Math.max(0, Math.min(list.height, view.bottom - list.top))
     };
 };
 
-VirtualList.getItems = function(viewBox, listBox, itemHeight, itemCount, itemBuffer) {
-    if (itemCount === 0 || itemHeight === 0) return {
+VirtualList.getItems = function(viewBox, listBox, itemHeight, itemCount, itemBuffer, itemPositions) {
+    if (itemCount === 0) return {
         itemsInView: 0
     };
-    
+
     // list is below viewport
     if (viewBox.bottom < listBox.top) return {
         itemsInView: 0
     };
-    
+
     // list is above viewport
     if (viewBox.top > listBox.bottom) return {
         itemsInView: 0
     };
-    
+
     var listViewBox = VirtualList.getBox(viewBox, listBox);
-    
-    var firstItemIndex = Math.max(0,  Math.floor(listViewBox.top / itemHeight) - itemBuffer);
-    var lastItemIndex = Math.min(itemCount, Math.ceil(listViewBox.bottom / itemHeight) + itemBuffer) - 1;
-    
+    var firstItemIndex;
+    var lastItemIndex;
+
+    if (itemPositions) {
+      var range = bs.range(itemPositions, listViewBox.top, listViewBox.bottom);
+      firstItemIndex = range[0] - itemBuffer;
+      lastItemIndex = Math.min(itemCount, range[1] + itemBuffer) - 1;
+    } else {
+      firstItemIndex = Math.max(0,  Math.floor(listViewBox.top / itemHeight) - itemBuffer);
+      lastItemIndex = Math.min(itemCount, Math.ceil(listViewBox.bottom / itemHeight) + itemBuffer) - 1;
+    }
+
     var itemsInView = lastItemIndex - firstItemIndex + 1;
 
     var result = {
@@ -173,7 +208,7 @@ VirtualList.getItems = function(viewBox, listBox, itemHeight, itemCount, itemBuf
         lastItemIndex: lastItemIndex,
         itemsInView: itemsInView,
     };
-    
+
     return result;
 };
 
