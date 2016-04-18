@@ -28,7 +28,7 @@
   "homepage": "https://github.com/developerdizzle/react-virtual-list",
   "dependencies": {
     "binarysearch": "1.0.0",
-    "react": "~0.13.x"
+    "react": "^0.14.8"
   },
   "devDependencies": {
     "gulp": "^3.8.11",
