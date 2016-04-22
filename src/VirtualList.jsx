@@ -132,18 +132,20 @@ var VirtualList = React.createClass({
         this.setState(state);
     },
     componentWillMount: function() {
-        this.onScrollDebounced = utils.debounce(this.onScroll, this.props.scrollDelay, false);
+        //this.animationId = window.requestAnimationFrame(this.onScroll);
+        //this.onScrollDebounced = utils.debounce(this.onScroll, this.props.scrollDelay, false);
     },
     componentDidMount: function() {
         var state = this.getVirtualState(this.props);
 
         this.setState(state);
 
-        this.props.container.addEventListener('scroll', this.onScrollDebounced);
+        this.animationId = window.requestAnimationFrame(this.onScroll);
+        //this.props.container.addEventListener('scroll', this.onScrollDebounced);
     },
     componentWillUnmount: function() {
-        this.props.container.removeEventListener('scroll', this.onScrollDebounced);
-
+        //this.props.container.removeEventListener('scroll', this.onScrollDebounced);
+        window.cancelAnimationFrame(this.animationId);
         this.view = this.list = null;
     },
     onScroll: function() {
