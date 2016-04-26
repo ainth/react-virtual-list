@@ -75,7 +75,6 @@ var VirtualList = React.createClass({
     },
     shouldComponentUpdate: function(nextProps, nextState) {
         if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) return true;
-        //if (this.state.bufferStart !== nextState.bufferStart) return true;
 
         if (this.state.height !== nextState.height) return true;
 
@@ -148,7 +147,7 @@ var VirtualList = React.createClass({
         this.view = this.list = null;
     },
     onScroll: function() {
-        var state = this.getVirtualState(this.props);
+        var nextState = this.getVirtualState(this.props);
         if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) {
           this.setState(state);
         }
