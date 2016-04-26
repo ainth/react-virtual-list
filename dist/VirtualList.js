@@ -39,7 +39,7 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         // em - must sum 'height' prop of all items.
         if (!props.itemHeight) {
           itemPositions = this.itemPositions(props);
-          var last = state.itemPositions[state.itemPositions.length - 1];
+          var last = itemPositions[itemPositions.length - 1];
           state.height = last + this._getItemHeight(items[items.length - 1], props);
         } else {
           state.height = props.items.length * props.itemHeight;
@@ -131,36 +131,27 @@ var VirtualList = React.createClass({displayName: "VirtualList",
 
         var state = this.getVirtualState(nextProps);
 
-        this.props.container.removeEventListener('scroll', this.onScrollDebounced);
-
-        this.onScrollDebounced = utils.debounce(this.onScroll, nextProps.scrollDelay, false);
-
-        nextProps.container.addEventListener('scroll', this.onScrollDebounced);
+        this.props.container.removeEventListener('scroll', this.onScroll);
+        nextProps.container.addEventListener('scroll', this.onScroll);
 
         this.setState(state);
-    },
-    componentWillMount: function() {
-        //this.animationId = window.requestAnimationFrame(this.onScroll);
-        //this.onScrollDebounced = utils.debounce(this.onScroll, this.props.scrollDelay, false);
     },
     componentDidMount: function() {
         var state = this.getVirtualState(this.props);
 
         this.setState(state);
 
-        this.animationId = window.requestAnimationFrame(this.onScroll);
-        //this.props.container.addEventListener('scroll', this.onScrollDebounced);
+        this.props.container.addEventListener('scroll', this.onScroll);
     },
     componentWillUnmount: function() {
-        //this.props.container.removeEventListener('scroll', this.onScrollDebounced);
-        window.cancelAnimationFrame(this.animationId);
+        this.props.container.removeEventListener('scroll', this.onScroll);
         this.view = this.list = null;
     },
     onScroll: function() {
         var state = this.getVirtualState(this.props);
-
-        this.setState(state);
-        this.animationId = window.requestAnimationFrame(this.onScroll);
+        if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) {
+          this.setState(state);
+        }
     },
     // in case you need to get the currently visible items
     visibleItems: function() {
