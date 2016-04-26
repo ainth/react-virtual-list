@@ -149,7 +149,7 @@ var VirtualList = React.createClass({
     onScroll: function() {
         var nextState = this.getVirtualState(this.props);
         if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) {
-          this.setState(state);
+          this.setState(nextState);
         }
     },
     // in case you need to get the currently visible items
