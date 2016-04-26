@@ -10,14 +10,16 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         container: React.PropTypes.object.isRequired,
         tagName: React.PropTypes.string.isRequired,
         scrollDelay: React.PropTypes.number,
-        itemBuffer: React.PropTypes.number
+        itemBuffer: React.PropTypes.number,
+        fuzzyRender: React.PropTypes.number
     },
     getDefaultProps: function() {
         return {
             container: typeof window !== 'undefined' ? window : undefined,
             tagName: 'div',
             scrollDelay: 0,
-            itemBuffer: 0
+            itemBuffer: 0,
+            fuzzyRender: 0
         };
     },
     getVirtualState: function(props) {
@@ -36,7 +38,7 @@ var VirtualList = React.createClass({displayName: "VirtualList",
 
         // em - must sum 'height' prop of all items.
         if (!props.itemHeight) {
-          itemPositions = this.itemPositions();
+          itemPositions = this.itemPositions(props);
           var last = state.itemPositions[state.itemPositions.length - 1];
           state.height = last + this._getItemHeight(items[items.length - 1], props);
         } else {
@@ -60,7 +62,11 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         if (renderStats.itemsInView.length === 0) return state;
 
         state.items = items.slice(renderStats.firstItemIndex, renderStats.lastItemIndex + 1);
-        state.bufferStart = renderStats.firstItemIndex * props.itemHeight;
+        state.bufferStart = itemPositions ? itemPositions[renderStats.firstItemIndex] : renderStats.firstItemIndex * props.itemHeight;
+
+        /*
+          We should not render if the diff between the last bufferStart and the current bufferStart is too small.
+        */
 
         return state;
     },
@@ -68,7 +74,8 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         return this.getVirtualState(this.props);
     },
     shouldComponentUpdate: function(nextProps, nextState) {
-        if (this.state.bufferStart !== nextState.bufferStart) return true;
+        if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) return true;
+        //if (this.state.bufferStart !== nextState.bufferStart) return true;
 
         if (this.state.height !== nextState.height) return true;
 
@@ -80,7 +87,7 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         return (this.view = this.view || this._getViewBox(nextProps));
     },
     itemPositions: function itemPositions(nextProps) {
-        return (this.itemPositions = this.itemPositions || this._getItemPositions(nextProps));
+        return (this._itemPositions = this._itemPositions || this._getItemPositions(nextProps));
     },
     _getViewBox: function _getViewBox(nextProps) {
         return {
@@ -101,6 +108,7 @@ var VirtualList = React.createClass({displayName: "VirtualList",
     _getItemPositions: function(nextProps) {
         var items = nextProps.items;
         var itemPositions = [];
+        var getHeightByFunc = nextProps.getItemHeight && !(utils.isPlainObject(items[0]) && items[0].height);
 
         var atHeight = 0;
         for (i = 0; i < items.length; i++) {
@@ -114,12 +122,12 @@ var VirtualList = React.createClass({displayName: "VirtualList",
       var getHeightByFunc = props.getItemHeight && !(utils.isPlainObject(item) && items.height);
       return getHeightByFunc ? props.getItemHeight(item) : item.height;
     },
-    listBox: function listBox(nextProps) {
-        return (this.list = this.list || this._getListBox(nextProps));
+    listBox: function listBox(nextProps, nextState) {
+        return (this.list = this.list || this._getListBox(nextProps, nextState));
     },
     componentWillReceiveProps: function(nextProps) {
         // clear caches
-        this.view = this.list = null;
+        this.view = this.list = this._itemPositions = null;
 
         var state = this.getVirtualState(nextProps);
 
@@ -152,6 +160,7 @@ var VirtualList = React.createClass({displayName: "VirtualList",
         var state = this.getVirtualState(this.props);
 
         this.setState(state);
+        this.animationId = window.requestAnimationFrame(this.onScroll);
     },
     // in case you need to get the currently visible items
     visibleItems: function() {
@@ -196,7 +205,7 @@ VirtualList.getItems = function(viewBox, listBox, itemHeight, itemCount, itemBuf
 
     if (itemPositions) {
       var range = bs.range(itemPositions, listViewBox.top, listViewBox.bottom);
-      firstItemIndex = range[0] - itemBuffer;
+      firstItemIndex = Math.max(0, range[0] - itemBuffer);
       lastItemIndex = Math.min(itemCount, range[1] + itemBuffer) - 1;
     } else {
       firstItemIndex = Math.max(0,  Math.floor(listViewBox.top / itemHeight) - itemBuffer);

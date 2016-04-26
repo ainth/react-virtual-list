@@ -10,14 +10,16 @@ var VirtualList = React.createClass({
         container: React.PropTypes.object.isRequired,
         tagName: React.PropTypes.string.isRequired,
         scrollDelay: React.PropTypes.number,
-        itemBuffer: React.PropTypes.number
+        itemBuffer: React.PropTypes.number,
+        fuzzyRender: React.PropTypes.number
     },
     getDefaultProps: function() {
         return {
             container: typeof window !== 'undefined' ? window : undefined,
             tagName: 'div',
             scrollDelay: 0,
-            itemBuffer: 0
+            itemBuffer: 0,
+            fuzzyRender: 0
         };
     },
     getVirtualState: function(props) {
@@ -62,13 +64,18 @@ var VirtualList = React.createClass({
         state.items = items.slice(renderStats.firstItemIndex, renderStats.lastItemIndex + 1);
         state.bufferStart = itemPositions ? itemPositions[renderStats.firstItemIndex] : renderStats.firstItemIndex * props.itemHeight;
 
+        /*
+          We should not render if the diff between the last bufferStart and the current bufferStart is too small.
+        */
+
         return state;
     },
     getInitialState: function() {
         return this.getVirtualState(this.props);
     },
     shouldComponentUpdate: function(nextProps, nextState) {
-        if (this.state.bufferStart !== nextState.bufferStart) return true;
+        if (Math.abs(this.state.bufferStart - nextState.bufferStart) > this.props.fuzzyRender) return true;
+        //if (this.state.bufferStart !== nextState.bufferStart) return true;
 
         if (this.state.height !== nextState.height) return true;
 
